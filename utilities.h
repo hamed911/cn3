@@ -41,20 +41,32 @@ typedef struct dst_port {
 	char port[MAX_STR_SIZE];
 } dst_port;
 
+typedef struct group_info
+{
+	char ip[MAX_STR_SIZE];
+	char port[MAX_STR_SIZE];
+	char multi_ip[MAX_STR_SIZE];
+	char members[MAX_STR_SIZE][MAX_STR_SIZE];
+} group_info;
 /* in the maping type-section to nodes:
 // 00 is for client
-// 01 is for service_provider
-// 10 is for switch
+// 01 is for Group_server
+// 10 is for router
 // 11 is for server
 */
 
 void crc(char* t, char* res);
-int connect_to_aport(int to_port, char new_frame[MAX_STR_SIZE], char pasokh[MAX_STR_SIZE]);
+int connect_to_port(int port);
+int write_to_fd(int client_fd, char massage[MAX_STR_SIZE],char response[MAX_STR_SIZE]);
+int write_read_to_port(int to_port, char new_frame[MAX_STR_SIZE], char pasokh[MAX_STR_SIZE]);
 //void insert_dst_port(dst_port table [MAX_ARRAY_SIZE] ,char* dst,char* port);
 void read_entire_file(char* name,char data [MAX_ARRAY_SIZE]);
 bool file_exist(char * fname);
 void concat(int argn, char** args,char* c,char* concated);
-void create_service_files(int argn, char** args);
+// void create_service_files(int argn, char** args);
+void clear_group_info(group_info table[MAX_ARRAY_SIZE]);
+void insert_group_info(group_info table [MAX_ARRAY_SIZE] ,char ip[MAX_STR_SIZE],char port[MAX_STR_SIZE],char multi_ip[MAX_STR_SIZE]);
+void create_group_file(char* group_name);
 int create_directories(char path_name[MAX_STR_SIZE]);
 int open_or_create_file(char* name);
 bool has_access(char* user,char* file,char* acess);
@@ -70,7 +82,7 @@ void clear_ip_fd( ip_fd table [MAX_ARRAY_SIZE]);
 int search_ip_fd( ip_fd table [MAX_ARRAY_SIZE], char * ip);
 int search_ip_fd_by_fd( ip_fd table [MAX_ARRAY_SIZE], int fd);
 void delete_ip_fd( ip_fd table [MAX_ARRAY_SIZE],int index);
-void framing(char* type,char* dstAdd,char* srcAdd,char* data,char* sender_port,char* frame);
+void framing(char* type,char* dstAdd,char* srcAdd,char* name,char* data,char* sender,char* extera_data,char* frame);
 int change_ip_seed(int c);
 int read_ip_seed();
 int strlength(char str[MAX_STR_SIZE]);

@@ -6,12 +6,13 @@
 #include <errno.h>
 #include "utilities.h"
 
-int process_recieved_command(char buff_read[MAX_STR_SIZE],ip_fd* service_fd_table,int fd,char* final_response,char* port)
+int process_recieved_command(char buff_read[MAX_STR_SIZE],group_info* group_info_table,int fd,char* final_response,char* port)
 {
 	char response [MAX_STR_SIZE];
 	clear_buff(response,MAX_STR_SIZE);
 	int input_tokens_num;
 	char input_tokens[MAX_ARRAY_SIZE][MAX_STR_SIZE];
+	printf("recieved packet is:\n%s\n",buff_read );
 	replace_char(buff_read,'\n','\0' );
 	tokenizer(buff_read, "&", &input_tokens_num, input_tokens);
 	int data_num;
@@ -23,11 +24,12 @@ int process_recieved_command(char buff_read[MAX_STR_SIZE],ip_fd* service_fd_tabl
 		printf("client said!\n" );
 		if( strcmp(data[0],"Get") ==0 && strcmp(data[1],"List") ==0 && data_num==4){
 			int i;
-			for(i=0; i<MAX_ARRAY_SIZE; i++)
-				if(service_fd_table[i].fd!=-1){
-					strcat(response,service_fd_table[i].ip);
-					strcat(response," ");
-				}		
+			strcat(response," list of group");
+			// for(i=0; i<MAX_ARRAY_SIZE; i++)
+			// 	if(group_fd_table[i].fd!=-1){
+			// 		strcat(response,group_fd_table[i].ip);
+			// 		strcat(response," ");
+			// 	}		
 		}else if( strcmp(data[0],"Request")==0 && data_num==4){
 			if( has_access(data[3],data[1],data[2]) ){
 				strcat(response,"You have Access to file\tfile is:\n");
@@ -89,38 +91,27 @@ int process_recieved_command(char buff_read[MAX_STR_SIZE],ip_fd* service_fd_tabl
 				strcat(response," file Appended\n");
 			}
 		}else{
-			strcat(response,"Wrong command\n");
+			strcat(response,"Wrong command");
 		}
 		
 	}else if(strcmp( input_tokens[0],"01")==0){//provider
-		printf("provider said!\n" );
-		
-		int i;
-		for(i=0; i<data_num; i++){
-			insert_ip_fd( service_fd_table ,data[i], fd);
-		}
-		show_table_ip_fd(service_fd_table,4);
+		printf("group server said!\n" );
+		insert_group_info(group_info_table ,input_tokens[2],input_tokens[7],input_tokens[4]);
+		show_group_info(group_info_table,4);
 	}
-	framing("11",input_tokens[2],"0",response,port,final_response);
+	framing("11",input_tokens[2],"0","server",response,port,"ss",final_response);
 
 	if(mystrcmp(input_tokens[7], "ssss")<0)
 	{
 		char pasokh[MAX_STR_SIZE];
 		clear_buff(pasokh, MAX_STR_SIZE);
-
-		int serv_conn = connect_to_aport(atoi(input_tokens[7]), final_response, pasokh);
+		printf("input_tokens 7 is: %s\n",input_tokens[7]);
+		int serv_conn = write_read_to_port(atoi(input_tokens[7]), final_response, pasokh);
 
 		printf("pasokhi ke server migire vaghti javabe switch ro mide\n");
 	}
 	//return serv_conn;
 }
-
-/*void test(ip_fd service_fd_table[MAX_ARRAY_SIZE]){
-	char response[MAX_STR_SIZE];
-	process_recieved_command("00&0000000000000000&0000000000000001&$$$$&1024&Append kaftar.txt jafariiiiiiiiiiiiiiiiiiiiiiiiiii hamed&$$$$$$&cccc",
-			service_fd_table,2,response,"1000");
-	printf("response is\n%s\n",response );
-}*/
 
 
 /*void test()
@@ -141,10 +132,10 @@ int process_recieved_command(char buff_read[MAX_STR_SIZE],ip_fd* service_fd_tabl
 int main(int argn, char** args)
 {
 	//test(); return 0;
-
-	ip_fd ip_fd_table[MAX_ARRAY_SIZE],service_fd_table[MAX_ARRAY_SIZE];
-	initial_ip_fd(ip_fd_table);
-	initial_ip_fd(service_fd_table);
+	printf("before\n");
+	group_info group_info_table [2];
+	printf("after\n");
+	// clear_group_info(group_info_table);
 	// test(service_fd_table);return;
 	if(argn!=2){
 		print("use this format: /Server port\n");
@@ -238,6 +229,8 @@ int main(int argn, char** args)
 					struct sockaddr_in switch_addr;
 					switch_addr.sin_family = AF_INET;
 					switch_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+					replace_char(input_tokens[2],'\n','\0');
+					printf("input token 2 is: %s\n",input_tokens[2] );
 					port_no = atoi(input_tokens[2]);
 					switch_addr.sin_port = htons(port_no);
 					int status1 = connect(client_fd, (struct sockaddr *)&switch_addr, sizeof(switch_addr));
@@ -307,7 +300,6 @@ int main(int argn, char** args)
 						close(it_fd);
 						FD_CLR(it_fd, &read_fdset);
 						write(STDOUTFD, "Removing One Client_fd\n", sizeof("Removing One Client_fd\n"));
-						delete_all_ip_fd( service_fd_table, it_fd);
 					}
 					else if(n < 0)
 					{
@@ -323,7 +315,7 @@ int main(int argn, char** args)
 							clear_buff(response_buff, MAX_STR_SIZE);
 							//if(process_command(buff_read, response_buff, args[1]) < 0)
 							printf("recieved command is:\n%s\n",buff_read);
-							if(process_recieved_command(buff_read,service_fd_table,it_fd,response_buff,args[1])<0)
+							if(process_recieved_command(buff_read,group_info_table,it_fd,response_buff,args[1])<0)
 							{
 								printf("process command manfie\n");
 								int st = write(it_fd, "Invalid command\n", sizeof("Invalid command\n"));

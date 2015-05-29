@@ -4,162 +4,111 @@
 #include "utilities.h"
 
 int main(int argn, char** args){
-	if(argn!=3){
-		print("use this format: /Client username password\n");
+	if(argn!=5){
+		print("use this format: ./Client name server_ip router_ip router_port\n");
 		return 0;
 	}
-	int my_ip;
-	char resip[MAX_STR_SIZE];
-	clear_buff(resip, MAX_STR_SIZE);
-
-	char input_buffer[MAX_STR_SIZE];
-	clear_buff(input_buffer, MAX_STR_SIZE);
-
-	while( read(STDINFD, input_buffer, MAX_STR_SIZE) > 0 ){
-		int input_tokens_num;
-		char input_tokens[MAX_ARRAY_SIZE][MAX_STR_SIZE];
-		tokenizer(input_buffer, " ", &input_tokens_num, input_tokens);
-		if(mystrcmp(input_tokens[0], "Login") == 0 && input_tokens_num == 3){
-			if(mystrcmp(input_tokens[1],args[1])==0 && mystrcmp(input_tokens[2],args[2])==0){
-				print("welcome!\n");
-				break;
-			}else{
-				print("invalid password or username\n");
-			}
+	char* client_name = args[1];
+	char* client_ip=NULL;
+	char* server_ip= args[2];
+	char* router_port= args[4];
+	int ip_input_tokens_num;
+	char ip_input_tokens[MAX_ARRAY_SIZE][MAX_STR_SIZE];
+	char ip_input_buffer[MAX_STR_SIZE];
+	clear_buff(ip_input_buffer, MAX_STR_SIZE);
+	while( read(STDINFD, ip_input_buffer, MAX_STR_SIZE) > 0 ){	
+		tokenizer(ip_input_buffer, " ", &ip_input_tokens_num, ip_input_tokens);
+		if(mystrcmp(ip_input_tokens[0], "Set") == 0 && mystrcmp(ip_input_tokens[1], "IP") == 0 && ip_input_tokens_num == 3){
+			client_ip=ip_input_tokens[2];
+			replace_char(client_ip,'\n','\0');
+			break;
 		}else{
-			print("you should Login first: Login asghar pass\n");
+			print("You should set your IP first : Set IP 115.2.2.18\n");
 		}
 	}
-
+	int fd = connect_to_port(atoi(router_port));
+	char input_buffer[MAX_STR_SIZE];
+	clear_buff(input_buffer, MAX_STR_SIZE);
 	while(read(STDINFD, input_buffer, MAX_STR_SIZE) > 0)
-	{
-		//parsing input_buffer
+	{	
 		int input_tokens_num;
 		char input_tokens[MAX_ARRAY_SIZE][MAX_STR_SIZE];
-		tokenizer(input_buffer, " ", &input_tokens_num, input_tokens);
+		replace_char(input_buffer,'\n','\0');
+		char iden_buff[MAX_STR_SIZE];
+		clear_buff(iden_buff, MAX_STR_SIZE);
+		strcat(iden_buff, "00");//00 is for client
+		//parsing input_buffer
+		tokenizer(input_buffer," ", &input_tokens_num, input_tokens);
 		
-		if(mystrcmp(input_tokens[0], "Connect") == 0 && input_tokens_num == 3)// don't forget to check reconnect!!
+		char frame[MAX_STR_SIZE];
+		clear_buff(frame, MAX_STR_SIZE);
+		char data[MAX_STR_SIZE];
+		clear_buff(data, MAX_STR_SIZE);
+		
+		//send command for server
+		if( (mystrcmp(input_tokens[0], "DC") < 0) && (mystrcmp(input_tokens[0], "Logout") < 0) )
 		{
-			int n, m;//return value of read/write calls
-			int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-			printf("socket to connect is: %d\n", fd);
-
-			int port_no = atoi(input_tokens[2]);
-			struct sockaddr_in serv_addr;
-			serv_addr.sin_family = AF_INET;
-			serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-			serv_addr.sin_port = htons(port_no);
-
-			int status = connect(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
-			if(status < 0)
-			{
-				write(STDOUTFD,"Error on connecting\n", sizeof("Error on connecting\n"));
-				continue;
-				//exit
-			}
-			else
-			{
-				write(STDOUTFD, "connecting successful\n", sizeof("connecting successful\n"));
-
-				int bytes_w = write(fd, "get_ip", sizeof("get_ip"));
-				int bytes_r = read(fd, resip, MAX_STR_SIZE);
-				printf("gotten ip is: %s\n", resip);
-				my_ip = atoi(resip);
-			}
-			//sending identity to server
-			char iden_buff[MAX_STR_SIZE];
-			clear_buff(iden_buff, MAX_STR_SIZE);
-			strcat(iden_buff, "00");//00 is for client
-
-			while(1)
-			{
-				//read command
-				char data[MAX_STR_SIZE];
-				clear_buff(data, MAX_STR_SIZE);
-				int status = read(STDINFD, data, MAX_STR_SIZE);
-				replace_char(data,'\n','\0');
-				char frame[MAX_STR_SIZE];
-				clear_buff(frame, MAX_STR_SIZE);
-				int tokens_num;
-				char temptkns[MAX_ARRAY_SIZE][MAX_STR_SIZE];
-				tokenizer(data, " \n", &tokens_num, temptkns);
-
-				//send command for server
-				if( (mystrcmp(temptkns[0], "DC") < 0) && (mystrcmp(temptkns[0], "Logout") < 0) )
-				{
-					if( strcmp(temptkns[0],"Request")==0 || strcmp(temptkns[0],"Append")==0 || strcmp(temptkns[0],"Send")==0){
-						strcat(data," ");
-						strcat(data,args[1]);
-
-					}
-					if(strcmp(temptkns[0],"Send")==0 && tokens_num==2){
-						if(!file_exist(temptkns[1])){
-							printf("file %s doesn't exist! You should create this file near ./Client 's directory\n", temptkns[1]);
-							continue;
-						}
-						char file_content[MAX_STR_SIZE];
-						clear_buff(file_content,MAX_STR_SIZE);
-						read_entire_file(temptkns[1],file_content);
-						replace_char(file_content,'\n','^');
-						strcat(data," ");
-						strcat(data,file_content);
-
-					}
-
-					framing(iden_buff,"0",resip,data,"cccc",frame);
-
-					int bytes_written = write(fd, frame, strlength(frame));
-					if(bytes_written < 0)
-						write(STDOUTFD,"Error on writing\n", sizeof("Error on writing\n"));
-
-					//get response from server
-					char res_status[MAX_STR_SIZE];
-					clear_buff(res_status, MAX_STR_SIZE);
-					int read_status = read(fd, res_status, MAX_STR_SIZE);
-					//show the response to client
-					printf("status of result of first reading ...\n");
-					write(STDOUTFD, res_status, strlength(res_status));
-					printf("\n");
-
-					char res_buff[MAX_STR_SIZE];
-					clear_buff(res_buff, MAX_STR_SIZE);
-					read_status = read(fd, res_buff, MAX_STR_SIZE);
-					//printf("natije nahayee: %s\n", res_buff);
-					//int read_status = read(fd, res_buff, MAX_STR_SIZE);
-					int input_tokens_num;
-					char input_tokens[MAX_ARRAY_SIZE][MAX_STR_SIZE];
-					tokenizer(res_buff, "&", &input_tokens_num, input_tokens);
-					//show the response to client
-					write(STDOUTFD, input_tokens[5], strlength(input_tokens[5]));
-					printf("\n");
+			if( strcmp(input_tokens[0],"Send")==0 && strcmp(input_tokens[1],"message")==0  && input_tokens_num==3){
+				strcat(data,"Sent message: ");
+				strcat(data,input_tokens[2]);
+			} else if(strcmp(input_tokens[0],"Send")==0 && strcmp(input_tokens[1],"file")==0 && input_tokens_num==3){
+				if(!file_exist(input_tokens[2])){
+					printf("file %s doesn't exist! You should create this file near ./Client 's directory\n", input_tokens[2]);
+					continue;
 				}
-				else if(mystrcmp(temptkns[0], "DC") == 0)
-				{
-					int bytes_written = write(fd, "DC", strlength("DC"));
-					if(bytes_written < 0)
-						write(STDOUTFD,"Error on writing\n", sizeof("Error on writing\n"));
-					break;
-				}
-				else if(mystrcmp(temptkns[0], "Logout") == 0)
-				{
-					int bytes_written = write(fd,"DC", strlength("DC"));
-					if(bytes_written < 0)
-						write(STDOUTFD,"Error on writing\n", sizeof("Error on writing\n"));
-					close(fd);
-					return 0;
-				}
-			}
-			close(fd);
+				char file_content[MAX_STR_SIZE];
+				clear_buff(file_content,MAX_STR_SIZE);
+				read_entire_file(input_tokens[2],file_content);
+				replace_char(file_content,'\n','^');
+				strcat(data,"Sent file ");
+				strcat(data,input_tokens[2]);
+				strcat(data," contain:\n");
+				strcat(data,file_content);
+			}else
+				strcat(data,input_buffer);
+
+			framing(iden_buff,"0",client_ip,client_name,data,"cccc","cc",frame);
+			printf("sent frame is: %s\n",frame );
+			int bytes_written = write(fd, frame, strlength(frame));
+			if(bytes_written < 0)
+				write(STDOUTFD,"Error on writing\n", sizeof("Error on writing\n"));
+
+			//get response from server
+			char res_status[MAX_STR_SIZE];
+			clear_buff(res_status, MAX_STR_SIZE);
+			int read_status = read(fd, res_status, MAX_STR_SIZE);
+			//show the response to client
+			printf("status of result of first reading ...\n");
+			write(STDOUTFD, res_status, strlength(res_status));
+			printf("\n");
+
+			char res_buff[MAX_STR_SIZE];
+			clear_buff(res_buff, MAX_STR_SIZE);
+			read_status = read(fd, res_buff, MAX_STR_SIZE);
+			printf("result is:\n%s\n",res_buff );
+			int input_tokens_num;
+			char input_tokens[MAX_ARRAY_SIZE][MAX_STR_SIZE];
+			tokenizer(res_buff, "&", &input_tokens_num, input_tokens);
+			//show the response to client
+			write(STDOUTFD, input_tokens[5], strlength(input_tokens[5]));
+			printf("\n");
+		}
+		else if(mystrcmp(input_tokens[0], "DC") == 0)
+		{
+			int bytes_written = write(fd, "DC", strlength("DC"));
+			if(bytes_written < 0)
+				write(STDOUTFD,"Error on writing\n", sizeof("Error on writing\n"));
+			break;
 		}
 		else if(mystrcmp(input_tokens[0], "Logout") == 0)
 		{
+			int bytes_written = write(fd,"DC", strlength("DC"));
+			if(bytes_written < 0)
+				write(STDOUTFD,"Error on writing\n", sizeof("Error on writing\n"));
+			close(fd);
 			return 0;
 		}
-		else if( (mystrcmp(input_tokens[0], "Connect") < 0) && (mystrcmp(input_tokens[0], "Logout") < 0) )
-		{
-			write(STDOUTFD, "You Should Connect to Switch : Connect Switch 2001\n", sizeof("You Should Connect to Switch : Connect Switch 2001\n"));
-		}
 	}
+	close(fd);
 	return 0;
 }

@@ -10,6 +10,18 @@ void concat(int argn, char** args,char* c,char* concated){
 	}
 }
 
+void create_group_file(char* group_name){
+	create_directories("./DB");
+	create_directories("./DB/Groups");
+	printf("Group file %s created\n",group_name );
+	char name[MAX_STR_SIZE];
+	clear_buff(name, MAX_STR_SIZE);
+	strcat(name, "./DB/Groups/");
+	strcat(name,group_name);
+	int fd= open_or_create_file(name);
+	close(fd);
+}
+/*
 void create_service_files(int argn, char** args){
 	create_directories("./DB");
 	create_directories("./DB/Services");
@@ -24,7 +36,7 @@ void create_service_files(int argn, char** args){
 		close(fd);
 	}
 }
-
+*/
 
 int open_or_create_file(char* name){
 	return open(name, O_RDWR | O_CREAT, S_IRUSR | S_IRGRP | S_IROTH |S_IWUSR);
@@ -61,20 +73,14 @@ bool has_access(char* user,char* service,char* mode){
 	fclose(file);
 	return false;
 }
-
-//this function connects to a port and write sth for it ince and read ite response
-int connect_to_aport(int to_port, char new_frame[MAX_STR_SIZE], char pasokh[MAX_STR_SIZE])
-{
+// connect to port then return server fd
+int connect_to_port(int port){
 	int client_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	printf("\n####value of socket:  %d\n", client_fd);
 	struct sockaddr_in switch_addr;
 	switch_addr.sin_family = AF_INET;
 	switch_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	int port_no = to_port;
-
-	printf("####value of the port that we want to connect: %d\n", port_no);
-
-	switch_addr.sin_port = htons(port_no);
+	printf("attempt to connect to port : %d\n",port );
+	switch_addr.sin_port = htons(port);
 	int status1 = connect(client_fd, (struct sockaddr *)&switch_addr, sizeof(switch_addr));
 	if(status1 < 0)
 	{
@@ -83,24 +89,30 @@ int connect_to_aport(int to_port, char new_frame[MAX_STR_SIZE], char pasokh[MAX_
 	}
 	else
 	{
-		write(STDOUTFD, "connecting to other switch successful\n", sizeof("connecting to other switch successful\n"));
+		printf("sucsessfully connect to port %d with file descriptor '%d'\n",port,client_fd );
 	}
+	return client_fd;
 
-	int bytes_written = write(client_fd, new_frame, strlength(new_frame));
+}
+
+int write_to_fd(int client_fd, char massage[MAX_STR_SIZE],char response[MAX_STR_SIZE]){
+	int bytes_written = write(client_fd, massage, strlength(massage));
 	if(bytes_written < 0)
 	{
 		write(STDOUTFD,"Error on writing\n", sizeof("Error on writing\n"));
 		return -1;
 	}
-	printf("chizi ke neveshte  :  %s\n", new_frame);
-	printf("\n.....1           ghabl az gerftane javab\n");
-
+	printf("chizi ke neveshte  :  %s\n", massage);
 	//get response from server
+	int read_status = read(client_fd, response, MAX_STR_SIZE);
+	return 1;
+}
 
-	int read_status = read(client_fd, pasokh, MAX_STR_SIZE);
-
-	printf("\n.....2           bad az gereftane javab\n");
-
+//this function connects to a port and write sth for it ince and read ite response
+int write_read_to_port(int to_port, char new_frame[MAX_STR_SIZE], char pasokh[MAX_STR_SIZE])
+{
+	int client_fd = connect_to_port(to_port);
+	write_to_fd(client_fd,new_frame,pasokh);
 	//Disconnect from server
 	int byts_written = write(client_fd, "DC", strlength("DC"));
 	if(byts_written < 0)
@@ -154,6 +166,7 @@ void delete_dst_port(dst_port table [MAX_ARRAY_SIZE],int index){
 	clear_buff(table[index].port,MAX_STR_SIZE);*/
 }
 
+
 void insert_dst_port(dst_port table [MAX_ARRAY_SIZE] ,char* dst,char* port){
 	int i;
 	for(i=0; i<MAX_ARRAY_SIZE; i++)
@@ -163,6 +176,40 @@ void insert_dst_port(dst_port table [MAX_ARRAY_SIZE] ,char* dst,char* port){
 			strcpy(table[i].port,port);
 			break;
 		}
+	}
+}
+
+void clear_group_info(group_info table[MAX_ARRAY_SIZE]){
+	int i;
+	for(i=0; i<MAX_ARRAY_SIZE; i++)
+	{
+		printf("here\n");
+		strcpy( table[i].ip,"nill");
+	}
+}
+
+void insert_group_info(group_info table [MAX_ARRAY_SIZE] ,char ip[MAX_STR_SIZE],char port[MAX_STR_SIZE],char multi_ip[MAX_STR_SIZE]){
+	int i;
+	for(i=0; i< MAX_ARRAY_SIZE; i++){
+		if(mystrcmp(table[i].ip,"nill")==0){
+			strcpy(table[i].ip,ip);
+			strcpy(table[i].port,port);
+			strcpy(table[i].multi_ip,multi_ip);
+			break;
+		}	
+	}
+}
+
+void show_group_info( group_info table [MAX_ARRAY_SIZE], int limit){
+	int i;
+	printf("**********multicast table ************\n");
+	printf("IP\t\tmulticast_ip\t\tport\t\tmembers\n");
+	for(i=0; i< limit; i++){
+		printf("%s\t\t%s\t\t%s\t\t",table[i].ip,table[i].multi_ip,table[i].port );
+		int j;
+		for(j=0; j<limit; j++)
+			printf("%s,\t",table[i].members[j] );
+		printf("\n");
 	}
 }
 
@@ -273,20 +320,19 @@ void extend_to(char* c, int to,char* ress)
 	strcat(ress, c);
 }
 
-void framing(char* type,char* dstAdd,char* srcAdd,char* data,char* sender_port,char* frame){
+void framing(char* type,char* dstAdd,char* srcAdd,char* name,char* data,char* sender,char* extera_data,char* frame){
 	strcat(frame, type);
 	strcat(frame, "&");
 	//dst
-	char ress[MAX_STR_SIZE];
-	clear_buff(ress, MAX_STR_SIZE);
-	extend_to(dstAdd, 16,ress);
-	strcat(frame, ress);
+	strcat(frame, dstAdd);
 	strcat(frame,"&");
 	//src
-	clear_buff(ress, MAX_STR_SIZE);
-	extend_to(srcAdd, 16,ress);
-	strcat(frame, ress);
-	strcat(frame, "&$$$$&1024&");
+	strcat(frame, srcAdd);
+	strcat(frame,"&");
+	strcat(frame,name);
+	strcat(frame,"&");
+	strcat(frame,extera_data);
+	strcat(frame, "&");
 	//data
 	strcat(frame, data);
 	char fcrc[20];
@@ -296,7 +342,7 @@ void framing(char* type,char* dstAdd,char* srcAdd,char* data,char* sender_port,c
 	strcat(frame, "&");
 	//strcat(frame, "&$$$$$$&");
 	//port
-	strcat(frame, sender_port);
+	strcat(frame, sender);
 }
 
 int change_ip_seed(int c)

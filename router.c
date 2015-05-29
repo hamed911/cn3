@@ -18,6 +18,7 @@ int forward_and_receive(char* my_port, char command[MAX_STR_SIZE], dst_port tabl
 	char* f_type = input_tokens[0];
 	char* f_dst_addr = input_tokens[1];
 	char* f_src_addr = input_tokens[2];
+	char* f_sender_name = input_tokens[3];
 	char* f_data = input_tokens[5];
 	char* f_sndr_port = input_tokens[7];
 
@@ -40,8 +41,8 @@ int forward_and_receive(char* my_port, char command[MAX_STR_SIZE], dst_port tabl
 				char pasokh[MAX_STR_SIZE];
 				clear_buff(pasokh, MAX_STR_SIZE);
 				printf("MEGHDAARE port baraye ettesal:  %d\n", atoi(table[found_port].port));
-				framing(f_type,f_dst_addr,f_src_addr,f_data,my_port,new_frame);
-				int conn = connect_to_aport(atoi(table[found_port].port), new_frame, pasokh);
+				framing(f_type,f_dst_addr,f_src_addr,f_sender_name,f_data,my_port,"rrrr",new_frame);
+				int conn = write_read_to_port(atoi(table[found_port].port), new_frame, pasokh);
 				printf("result of conn in transferring 00 pack is : %d\n", conn);
 				printf("pasokhi ke gerefte az girande: %s\n", pasokh);
 				if(conn > 0)
@@ -57,9 +58,59 @@ int forward_and_receive(char* my_port, char command[MAX_STR_SIZE], dst_port tabl
 			}
 		}
 	}
+	else if(mystrcmp(f_type, "01")==0)
+	{
+		printf("massage recieved from Group_server\n");
+		while(1)
+		{
+			int found_port = search_dst_port(table, f_dst_addr);
+			if(found_port < 0)
+			{
+				
+				int found_fd = search_ip_fd(ip_fd_table, f_dst_addr);
+				printf("found_fd is : %d\n", ip_fd_table[found_fd].fd);
+
+				if(found_fd >= 0)
+				{
+
+					printf("detected it connected to another client. dst_addr is '%s'\n",f_dst_addr);
+					printf("chizi ke mikhad barash benevise: %s\n", f_data);
+					int w_st = write(ip_fd_table[found_fd].fd, command, strlength(command));
+					if(w_st < 0)
+						printf("error in writing the response to found_fd\n");
+					//chera read response nadare????
+				}else{
+					write(pack_sender_fd, "\n~~Connecttion Error~~\n", strlen("\n~~Connecttion Error~~\n"));
+					return -1;
+				}
+			}
+			else
+			{
+				char new_frame[MAX_STR_SIZE];
+				clear_buff(new_frame, MAX_STR_SIZE);
+				char pasokh[MAX_STR_SIZE];
+				clear_buff(pasokh, MAX_STR_SIZE);
+				printf("MEGHDAARE port baraye ettesal:  %d\n", atoi(table[found_port].port));
+				framing(f_type,f_dst_addr,f_src_addr,f_sender_name,f_data,my_port,"rrrr",new_frame);
+				int conn = write_read_to_port(atoi(table[found_port].port), new_frame, pasokh);
+				printf("result of conn in transferring 00 pack is : %d\n", conn);
+				printf("pasokhi ke gerefte az girande: %s\n", pasokh);
+				if(conn > 0)
+					return conn;
+				else
+				{
+					show_table_dst_port(table, 5);
+					int f_p = search_dst_port(table, f_dst_addr);
+					delete_dst_port(table, f_p);
+					show_table_dst_port(table, 5);
+					continue;
+				}
+			}
+		}	
+	}
 	else if(mystrcmp(f_type, "10")==0)//from another switch, it's a connection message, connection should be confirmed
 	{
-		printf("\n**fahmide baste az switche\n");
+		printf("\n**fahmide baste az routere\n");
 		//strcpy(res, "connection to this switch for a new swich is confirmed");
 		return 1;
 	}
@@ -78,7 +129,6 @@ int forward_and_receive(char* my_port, char command[MAX_STR_SIZE], dst_port tabl
 			printf("fahmide be client vasle va fd is ro peida karde\n");
 			printf("chizi ke mikhad barash benevise: %s\n", f_data);
 			int w_st = write(ip_fd_table[found_fd].fd, command, strlength(command));
-			printf("bad az neveshtan e f_data\n");
 			if(w_st < 0)
 				printf("error in writing the response to found_fd\n");
 		}
@@ -96,12 +146,12 @@ int forward_and_receive(char* my_port, char command[MAX_STR_SIZE], dst_port tabl
 
 					char new_frame[MAX_STR_SIZE];
 					clear_buff(new_frame, MAX_STR_SIZE);	
-					printf("\n**for this switch my_port is | ke migzare akhare baste to child\n");
+					printf("\n**for this router my_port is | ke migzare akhare baste to child\n");
 					printf("%s\n", my_port);
-					framing(f_type,f_dst_addr,f_src_addr,f_data,my_port,new_frame);
+					framing(f_type,f_dst_addr,f_src_addr,f_sender_name,f_data,my_port,"rrrr",new_frame);
 					char pasokh[MAX_STR_SIZE];
 					clear_buff(pasokh, MAX_STR_SIZE);
-					int sw_conn = connect_to_aport(to_port, new_frame, pasokh);
+					int sw_conn = write_read_to_port(to_port, new_frame, pasokh);
 
 					if(sw_conn > 0)
 					{
@@ -149,7 +199,7 @@ int process_command(char* my_port, char command[MAX_STR_SIZE], dst_port table[MA
 	//check that the src_ip is in table or not, if not add src_ip and corr_port to table
 	printf("the DST_PORT__table BEFORE update\n");
 	show_table_dst_port(table, 5);
-	if(search_dst_port_by_port(table,f_src_addr, f_sndr_port)<0 && mystrcmp(f_src_addr, "0000000000009999")<0 && mystrcmp(f_dst_addr, "0000000000009999")<0 && mystrcmp(f_sndr_port, "cccc")<0)
+	if(search_dst_port_by_port(table,f_src_addr, f_sndr_port)<0 && mystrcmp(f_src_addr, "9999")<0 && mystrcmp(f_dst_addr, "9999")<0 && (mystrcmp(f_sndr_port, "cccc")<0 || mystrcmp(f_sndr_port, "gggg")<0) )
 	{
 		insert_dst_port(table, f_src_addr, f_sndr_port);
 	}
@@ -158,7 +208,7 @@ int process_command(char* my_port, char command[MAX_STR_SIZE], dst_port table[MA
 
 	printf("the IP_FD__table BEFORE update\n");
 	show_table_ip_fd(ip_fd_table, 5);
-	if(search_ip_fd(ip_fd_table, f_src_addr)<0 && mystrcmp(f_src_addr, "0000000000009999")<0 && mystrcmp(f_sndr_port, "cccc")==0)
+	if(search_ip_fd(ip_fd_table, f_src_addr)<0 && mystrcmp(f_src_addr, "9999")<0 && (mystrcmp(f_type, "11")==0 || mystrcmp(f_type, "01")==0) ) 
 		insert_ip_fd( ip_fd_table,f_src_addr,it_fd);
 	printf("the ip_fd_table AFTER update\n");	
 	show_table_ip_fd(ip_fd_table, 5);				
@@ -171,10 +221,10 @@ int process_command(char* my_port, char command[MAX_STR_SIZE], dst_port table[MA
 int main(int argn, char** args)
 {
 	if(argn!=2){
-		print("use this format: /Switch port\n");
+		print("use this format: ./Router port\n");
 		return 0;
 	}
-	char Switch_buffer[MAX_ARRAY_SIZE][MAX_STR_SIZE];
+	char router_buffer[MAX_ARRAY_SIZE][MAX_STR_SIZE];
 	int buffer_pointer=0;
 	int port_number = atoi(args[1]);//to be server
 	int port_no;//to be client
@@ -275,19 +325,19 @@ int main(int argn, char** args)
 					strcat(iden_buff, "10");//10 is for switch
 					char frame[MAX_STR_SIZE];
 					clear_buff(frame, MAX_STR_SIZE);
-					framing(iden_buff, "9999", "9999", data, args[1], frame);
+					framing(iden_buff, "9999", "9999","router", data, args[1], "rrrr",frame);
 
 					char res_buff[MAX_STR_SIZE];
 					clear_buff(res_buff, MAX_STR_SIZE);
 					//send command for server and get response from server
-					int conn = connect_to_aport(port_no, frame, res_buff);
+					int conn = write_read_to_port(port_no, frame, res_buff);
 					//show the response to terminal
 					write(STDOUTFD, res_buff, strlength(res_buff));
 					printf("\n");
 
 					if(mystrcmp(res_buff, "Baste ye shoma daryaft shod")<0)
 					{
-						printf("jaavbi ke bad az ettesal be switch migire: %s\n", res_buff);
+						printf("jaavbi ke bad az ettesal be router migire: %s\n", res_buff);
 
 						char in_tokens[MAX_ARRAY_SIZE][MAX_STR_SIZE];
 						int input_tokens_num;
@@ -322,7 +372,7 @@ int main(int argn, char** args)
 					clear_buff(response_buff, MAX_STR_SIZE);
 
 					n = read(it_fd, buff_read, MAX_STR_SIZE-1);
-					strcpy(Switch_buffer[buffer_pointer] ,buff_read);
+					strcpy(router_buffer[buffer_pointer] ,buff_read);
 					buffer_pointer++;
 					printf("\nDastoore khande shode az tarafe client:");
 					print(buff_read);
@@ -380,7 +430,7 @@ int main(int argn, char** args)
 							tokenizer(buff_read, "&", &tokens_num, input_tokens);
 							char res[200];
 							clear_buff(res, 200);
-							strcpy(res, "connection to switch for server is confirmed");
+							strcpy(res, "connection to router for server is confirmed");
 
 							write(it_fd, res,strlen(res));
 							show_table_dst_port(table, 5);
