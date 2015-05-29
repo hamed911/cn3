@@ -3,6 +3,17 @@
 #include <netinet/in.h>
 #include "utilities.h"
 
+void process_client_command(char recieved[MAX_STR_SIZE],char * data ){
+	int recieved_tokens_num;
+	char recieved_tokens[MAX_ARRAY_SIZE][MAX_STR_SIZE];
+	tokenizer(recieved, " ", &recieved_tokens_num, recieved_tokens);
+	if(mystrcmp( recieved_tokens[0],"Selected" )==0 ){
+		strcat(data,recieved_tokens[1]);
+		printf("server data is:%s\n",data );
+	}
+
+}
+
 int main(int argn, char** args){
 	if(argn!=5){
 		print("use this format: ./Client name server_ip router_ip router_port\n");
@@ -12,6 +23,8 @@ int main(int argn, char** args){
 	char* client_ip=NULL;
 	char* server_ip= args[2];
 	char* router_port= args[4];
+	char server_data [MAX_STR_SIZE];
+	clear_buff(server_data,MAX_STR_SIZE);
 	int ip_input_tokens_num;
 	char ip_input_tokens[MAX_ARRAY_SIZE][MAX_STR_SIZE];
 	char ip_input_buffer[MAX_STR_SIZE];
@@ -64,7 +77,8 @@ int main(int argn, char** args){
 				strcat(data,input_tokens[2]);
 				strcat(data," contain:\n");
 				strcat(data,file_content);
-			}else
+			}
+			else
 				strcat(data,input_buffer);
 
 			framing(iden_buff,"0",client_ip,client_name,data,"cccc","cc",frame);
@@ -85,6 +99,7 @@ int main(int argn, char** args){
 			char res_buff[MAX_STR_SIZE];
 			clear_buff(res_buff, MAX_STR_SIZE);
 			read_status = read(fd, res_buff, MAX_STR_SIZE);
+			process_client_command(res_buff,server_data );
 			printf("result is:\n%s\n",res_buff );
 			int input_tokens_num;
 			char input_tokens[MAX_ARRAY_SIZE][MAX_STR_SIZE];

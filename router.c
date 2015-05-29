@@ -19,6 +19,7 @@ int forward_and_receive(char* my_port, char command[MAX_STR_SIZE], dst_port tabl
 	char* f_dst_addr = input_tokens[1];
 	char* f_src_addr = input_tokens[2];
 	char* f_sender_name = input_tokens[3];
+	char* f_extra_data = input_tokens[4];
 	char* f_data = input_tokens[5];
 	char* f_sndr_port = input_tokens[7];
 
@@ -41,7 +42,7 @@ int forward_and_receive(char* my_port, char command[MAX_STR_SIZE], dst_port tabl
 				char pasokh[MAX_STR_SIZE];
 				clear_buff(pasokh, MAX_STR_SIZE);
 				printf("MEGHDAARE port baraye ettesal:  %d\n", atoi(table[found_port].port));
-				framing(f_type,f_dst_addr,f_src_addr,f_sender_name,f_data,my_port,"rrrr",new_frame);
+				framing(f_type,f_dst_addr,f_src_addr,f_sender_name,f_data,my_port,f_extra_data,new_frame);
 				int conn = write_read_to_port(atoi(table[found_port].port), new_frame, pasokh);
 				printf("result of conn in transferring 00 pack is : %d\n", conn);
 				printf("pasokhi ke gerefte az girande: %s\n", pasokh);
@@ -91,7 +92,7 @@ int forward_and_receive(char* my_port, char command[MAX_STR_SIZE], dst_port tabl
 				char pasokh[MAX_STR_SIZE];
 				clear_buff(pasokh, MAX_STR_SIZE);
 				printf("MEGHDAARE port baraye ettesal:  %d\n", atoi(table[found_port].port));
-				framing(f_type,f_dst_addr,f_src_addr,f_sender_name,f_data,my_port,"rrrr",new_frame);
+				framing(f_type,f_dst_addr,f_src_addr,f_sender_name,f_data,my_port,f_extra_data,new_frame);
 				int conn = write_read_to_port(atoi(table[found_port].port), new_frame, pasokh);
 				printf("result of conn in transferring 00 pack is : %d\n", conn);
 				printf("pasokhi ke gerefte az girande: %s\n", pasokh);
@@ -148,7 +149,7 @@ int forward_and_receive(char* my_port, char command[MAX_STR_SIZE], dst_port tabl
 					clear_buff(new_frame, MAX_STR_SIZE);	
 					printf("\n**for this router my_port is | ke migzare akhare baste to child\n");
 					printf("%s\n", my_port);
-					framing(f_type,f_dst_addr,f_src_addr,f_sender_name,f_data,my_port,"rrrr",new_frame);
+					framing(f_type,f_dst_addr,f_src_addr,f_sender_name,f_data,my_port,f_extra_data,new_frame);
 					char pasokh[MAX_STR_SIZE];
 					clear_buff(pasokh, MAX_STR_SIZE);
 					int sw_conn = write_read_to_port(to_port, new_frame, pasokh);
@@ -184,7 +185,7 @@ int forward_and_receive(char* my_port, char command[MAX_STR_SIZE], dst_port tabl
 	}
 }
 
-int process_command(char* my_port, char command[MAX_STR_SIZE], dst_port table[MAX_ARRAY_SIZE], int parents[MAX_ARRAY_SIZE], int pi, ip_fd ip_fd_table[MAX_ARRAY_SIZE], int it_fd)
+int process_command(group_info group_info_table[MAX_ARRAY_SIZE], char* my_port, char command[MAX_STR_SIZE], dst_port table[MAX_ARRAY_SIZE], int parents[MAX_ARRAY_SIZE], int pi, ip_fd ip_fd_table[MAX_ARRAY_SIZE], int it_fd)
 {
 	int tokens_num;
 	char input_tokens[MAX_ARRAY_SIZE][MAX_STR_SIZE];
@@ -199,7 +200,7 @@ int process_command(char* my_port, char command[MAX_STR_SIZE], dst_port table[MA
 	//check that the src_ip is in table or not, if not add src_ip and corr_port to table
 	printf("the DST_PORT__table BEFORE update\n");
 	show_table_dst_port(table, 5);
-	if(search_dst_port_by_port(table,f_src_addr, f_sndr_port)<0 && mystrcmp(f_src_addr, "9999")<0 && mystrcmp(f_dst_addr, "9999")<0 && (mystrcmp(f_sndr_port, "cccc")<0 || mystrcmp(f_sndr_port, "gggg")<0) )
+	if(search_dst_port_by_port(table,f_src_addr, f_sndr_port)<0 && mystrcmp(f_src_addr, "9999")<0 && mystrcmp(f_dst_addr, "9999")<0 && mystrcmp(f_sndr_port, "cccc") <0 && mystrcmp(f_sndr_port, "gggg")<0 )
 	{
 		insert_dst_port(table, f_src_addr, f_sndr_port);
 	}
@@ -208,10 +209,14 @@ int process_command(char* my_port, char command[MAX_STR_SIZE], dst_port table[MA
 
 	printf("the IP_FD__table BEFORE update\n");
 	show_table_ip_fd(ip_fd_table, 5);
-	if(search_ip_fd(ip_fd_table, f_src_addr)<0 && mystrcmp(f_src_addr, "9999")<0 && (mystrcmp(f_type, "11")==0 || mystrcmp(f_type, "01")==0) ) 
+	if(search_ip_fd(ip_fd_table, f_src_addr)<0 && mystrcmp(f_src_addr, "9999")<0 && (mystrcmp(f_type, "00")==0 || mystrcmp(f_type, "01")==0) ) 
 		insert_ip_fd( ip_fd_table,f_src_addr,it_fd);
 	printf("the ip_fd_table AFTER update\n");	
 	show_table_ip_fd(ip_fd_table, 5);				
+
+	//update multicast table
+	if( mystrcmp(input_tokens[0],"11") ==0 && mystrcmp(input_tokens[4],"update")==0 )
+		update_multicast_table(group_info_table, command);
 
 	//the received_frame should be processed through parents or children
 	forward_and_receive(my_port, command, table, parents, pi, ip_fd_table, it_fd);
@@ -224,6 +229,10 @@ int main(int argn, char** args)
 		print("use this format: ./Router port\n");
 		return 0;
 	}
+
+	group_info group_info_table[MAX_ARRAY_SIZE];
+	clear_group_info(group_info_table);
+
 	char router_buffer[MAX_ARRAY_SIZE][MAX_STR_SIZE];
 	int buffer_pointer=0;
 	int port_number = atoi(args[1]);//to be server
@@ -345,7 +354,7 @@ int main(int argn, char** args)
 
 						printf("<javab[0], javab[1]> is <%s, %s>\n", in_tokens[0], in_tokens[1]);
 						show_table_dst_port(table, 5);
-						insert_dst_port(table, "0000000000000000", in_tokens[1]);
+						insert_dst_port(table, "0", in_tokens[1]);
 						show_table_dst_port(table, 5);
 					}
 
@@ -395,12 +404,12 @@ int main(int argn, char** args)
 					{
 						if(mystrcmp(buff_read, "DC") < 0 && mystrcmp(buff_read, "get_ip") < 0 && (mystrcmp(buff_read, "11&2000")<0))
 						{
-							if(process_command(args[1], buff_read, table, parents, parent_i, ip_fd_table, it_fd) < 0)
+							if(process_command(group_info_table, args[1], buff_read, table, parents, parent_i, ip_fd_table, it_fd) < 0)
 							{
 								int st = write(it_fd, "Invalid command\n", sizeof("Invalid command\n"));
 								if(st < 0) write(STDOUTFD, "Error on writing\n", sizeof("Error on writing\n"));
 							}
-							if(search_dst_port(table, "0000000000000000") >= 0)
+							if(search_dst_port(table, "0") >= 0)
 							{
 								strcpy(response_buff, "connected_to_server");
 								strcat(response_buff, "#");
@@ -434,7 +443,7 @@ int main(int argn, char** args)
 
 							write(it_fd, res,strlen(res));
 							show_table_dst_port(table, 5);
-							insert_dst_port(table, "0000000000000000", input_tokens[1]);
+							insert_dst_port(table, "0", input_tokens[1]);
 							show_table_dst_port(table, 5);
 							//connected_to_server = 1;
 							//connected_server_port = input_tokens[1];

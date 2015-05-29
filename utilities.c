@@ -179,39 +179,169 @@ void insert_dst_port(dst_port table [MAX_ARRAY_SIZE] ,char* dst,char* port){
 	}
 }
 
-void clear_group_info(group_info table[MAX_ARRAY_SIZE]){
-	int i;
-	for(i=0; i<MAX_ARRAY_SIZE; i++)
-	{
-		printf("here\n");
-		strcpy( table[i].ip,"nill");
-	}
-}
-
-void insert_group_info(group_info table [MAX_ARRAY_SIZE] ,char ip[MAX_STR_SIZE],char port[MAX_STR_SIZE],char multi_ip[MAX_STR_SIZE]){
-	int i;
-	for(i=0; i< MAX_ARRAY_SIZE; i++){
-		if(mystrcmp(table[i].ip,"nill")==0){
-			strcpy(table[i].ip,ip);
-			strcpy(table[i].port,port);
-			strcpy(table[i].multi_ip,multi_ip);
-			break;
-		}	
-	}
-}
-
 void show_group_info( group_info table [MAX_ARRAY_SIZE], int limit){
 	int i;
 	printf("**********multicast table ************\n");
-	printf("IP\t\tmulticast_ip\t\tport\t\tmembers\n");
+	printf("name\t\tIP\t\tmulticast_ip\t\tmembers\n");
 	for(i=0; i< limit; i++){
-		printf("%s\t\t%s\t\t%s\t\t",table[i].ip,table[i].multi_ip,table[i].port );
+		printf("%s\t\t%s\t\t%s\t\t",table[i].name,table[i].ip,table[i].multi_ip);
 		int j;
 		for(j=0; j<limit; j++)
 			printf("%s,\t",table[i].members[j] );
 		printf("\n");
 	}
 }
+
+
+void clear_group_info(group_info table[MAX_ARRAY_SIZE]){
+	int i;
+	for(i=0; i<MAX_ARRAY_SIZE; i++)
+	{
+		strcpy( table[i].ip,"nill");
+		int j;
+		for(j=0; j<MAX_MEMBER_SIZE; j++){
+			strcpy( table[i].members[j],"nill");
+		}
+	}
+}
+
+int search_group_info_by_multi_ip(group_info table [MAX_ARRAY_SIZE], char * multi_ip){
+	int i; 
+	for(i=0; i<MAX_ARRAY_SIZE; i++)
+	{
+		if(mystrcmp(table[i].multi_ip,multi_ip)==0)return i;
+	}
+	return -1;
+}
+int search_group_info_by_name(group_info table [MAX_ARRAY_SIZE], char * name){
+	int i; 
+	for(i=0; i<MAX_ARRAY_SIZE; i++)
+	{
+		if(mystrcmp(table[i].name,name)==0)return i;
+	}
+	return -1;
+}
+
+int remove_member_group_info(group_info table [MAX_ARRAY_SIZE],int index, char * member_ip){
+	int i;
+	bool visited=false;
+	for(i=0; i<MAX_MEMBER_SIZE; i++)
+	{
+		if(mystrcmp(table[index].members[i],member_ip)==0){
+			clear_buff(table[index].members[i],MAX_LIMITED_STR);
+			strcat(table[index].members[i],"nill");
+			visited=true;
+			break;
+		}
+	}
+	printf("after removing member form multicast table\n");
+	show_group_info( table, 3);
+	if(visited)
+		return i;
+	return -1;
+}
+
+int delete_member_group_info(group_info table [MAX_ARRAY_SIZE],int index){
+	int i;
+	for(i=0; i<MAX_MEMBER_SIZE; i++){
+		clear_buff( table[index].members[i]	,MAX_LIMITED_STR);
+		strcat(table[index].members[i],"nill");
+	}
+}
+
+int add_member_group_info(group_info table [MAX_ARRAY_SIZE],int index, char * member){
+	printf("member string in add_member is %s\n", member);
+	int i;
+	int first_null=-1; 
+	for(i=0; i<MAX_MEMBER_SIZE; i++)
+	{
+		if(mystrcmp(table[index].members[i],member)==0)
+			return i;
+		if(mystrcmp(table[index].members[i],"nill")==0 && first_null==-1)
+			first_null=i;
+	}
+	clear_buff(table[index].members[first_null], MAX_LIMITED_STR);
+	strcpy(table[index].members[first_null], member);
+	printf("after add member in multicast tables\n");
+	show_group_info( table, 3);
+	return first_null;
+}
+
+
+int insert_group_info(group_info table [MAX_ARRAY_SIZE] ,char name[MAX_STR_SIZE],char ip[MAX_STR_SIZE],char multi_ip[MAX_STR_SIZE]){
+	int i;
+	for(i=0; i< MAX_ARRAY_SIZE; i++){
+		if(mystrcmp(table[i].ip,"nill")==0){
+			strcpy(table[i].name,name);
+			strcpy(table[i].ip,ip);
+			strcpy(table[i].multi_ip,multi_ip);
+			return i;
+		}	
+	}
+	return -1;
+}
+
+void update_multicast_table( group_info group_info_table[MAX_ARRAY_SIZE], char * name){
+	printf("command in updating table is %s\n", name);
+	int tokens_num;
+	char input_tokens[MAX_ARRAY_SIZE][MAX_STR_SIZE];
+	tokenizer(name, "&", &tokens_num, input_tokens);
+	char data_tokens [MAX_ARRAY_SIZE][MAX_STR_SIZE];
+	tokenizer(input_tokens[5], "~", &tokens_num, data_tokens);
+	int i;
+	for(i=0; i<tokens_num; i++){
+		printf("data_tokens[%d] is %s\n",i,  data_tokens[i]);
+		int group_num;
+		char group_data [MAX_ARRAY_SIZE][MAX_STR_SIZE];
+		tokenizer(data_tokens[i], "`", &group_num, group_data);
+		int g_index= search_group_info_by_multi_ip(group_info_table, group_data[2]);
+		if(g_index<0)
+			g_index= insert_group_info(group_info_table ,group_data[0],group_data[1],group_data[2]);
+		printf("g_index is%d\n", g_index);
+		int member_num;
+		char member_data[MAX_ARRAY_SIZE][MAX_STR_SIZE];
+		bzero(member_data,MAX_ARRAY_SIZE*MAX_STR_SIZE-1);
+		tokenizer(group_data[3], "*", &member_num, member_data);
+		delete_member_group_info(group_info_table,g_index);
+		int j;
+		if(group_num==4)
+			for(j=0; j<member_num; j++)
+				add_member_group_info(group_info_table,g_index, member_data[j]);
+	}
+	printf("after updating multicast\n");
+	show_group_info( group_info_table, 3);
+}
+
+void group_info_to_string(group_info* group_info_table,int index,char * result){
+	strcat(result,group_info_table[index].name);
+	strcat(result,"`");
+	strcat(result,group_info_table[index].ip);
+	strcat(result,"`");
+	strcat(result,group_info_table[index].multi_ip);
+	int j=0;
+	while(mystrcmp( group_info_table[index].members[j],"nill") <0){
+		if(j!=0)
+			strcat(result,"*");
+		else
+			strcat(result,"`");
+		strcat(result,group_info_table[index].members[j]);
+		j++;
+	}
+}
+
+void list_groups( group_info* group_info_table, char* result){
+	int i=0;
+	while( mystrcmp( group_info_table[i].ip,"nill") < 0 ){
+		if(i!=0)
+			strcat(result,"~");
+		char group_info_str[MAX_STR_SIZE];
+		clear_buff(group_info_str,MAX_STR_SIZE);
+		group_info_to_string(group_info_table,i,group_info_str);
+		strcat(result,group_info_str);
+		i++;
+	}
+}
+
 
 bool file_exist(char * fname){
 	if( access( fname, F_OK ) != -1 )

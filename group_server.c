@@ -3,18 +3,11 @@
 #include <netinet/in.h>
 #include "utilities.h"
 
-void test(char * name){
-	if( file_exist(name) )
-		printf("file exist\n");;
-	char data[MAX_STR_SIZE];
-	clear_buff(data,MAX_STR_SIZE);
-	read_entire_file(name,data);
-	printf("data is:\n%s",data );
-
-}
 
 int main(int argn, char** args){
-	// test("./DB/Services/jafar.txt"); return;
+	/*group_info group_ip_[MAX_STR_SIZE];
+	clear_group_info(group_ip_);
+	test(group_ip_,"11&1.2.3.4&0&server&ss&telegram`1.1.1.1`2.2.2.2`javad*ali*shanbalile&111000&2000"); return;*/
 	if(argn!=3){
 		printf("Error in using group_server. correct format is: ./group_server name server_ip\n");
 		return;

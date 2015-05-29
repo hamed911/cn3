@@ -17,11 +17,12 @@
 #define STDINFD 0
 #define STDOUTFD 1
 #define STDERRFD 2
-#define MAX_STR_SIZE 2000
-#define MAX_ARRAY_SIZE 20
-#define GETMAX(X,Y) ((X) > (Y) ? (X) : (Y))
-#define GETMIN(X,Y) ((Y) > (X) ? (X) : (Y))
-
+#define MAX_STR_SIZE 1024
+#define MAX_ARRAY_SIZE 16
+#define MAX_LIMITED_STR 32
+#define MAX_MEMBER_SIZE 4
+#define GETMAX(X,Y) ((X)>(Y)? (X) : (Y))
+#define	GETMIN(X,y)	((Y) > (X):(Y))
 typedef enum { false, true } bool;
 
 struct linux_dirent {
@@ -43,11 +44,12 @@ typedef struct dst_port {
 
 typedef struct group_info
 {
-	char ip[MAX_STR_SIZE];
-	char port[MAX_STR_SIZE];
-	char multi_ip[MAX_STR_SIZE];
-	char members[MAX_STR_SIZE][MAX_STR_SIZE];
+	char name[MAX_LIMITED_STR];
+	char ip[MAX_LIMITED_STR];
+	char multi_ip[MAX_LIMITED_STR];
+	char members[MAX_MEMBER_SIZE][MAX_LIMITED_STR];
 } group_info;
+
 /* in the maping type-section to nodes:
 // 00 is for client
 // 01 is for Group_server
@@ -55,6 +57,7 @@ typedef struct group_info
 // 11 is for server
 */
 
+void update_multicast_table( group_info* group_info_table, char * name);
 void crc(char* t, char* res);
 int connect_to_port(int port);
 int write_to_fd(int client_fd, char massage[MAX_STR_SIZE],char response[MAX_STR_SIZE]);
@@ -64,9 +67,16 @@ void read_entire_file(char* name,char data [MAX_ARRAY_SIZE]);
 bool file_exist(char * fname);
 void concat(int argn, char** args,char* c,char* concated);
 // void create_service_files(int argn, char** args);
+int delete_member_group_info(group_info table [MAX_ARRAY_SIZE],int index);
+int remove_member_group_info(group_info table [MAX_ARRAY_SIZE],int index, char * member_ip);
+void group_info_to_string(group_info* group_info_table,int index,char * result);
 void clear_group_info(group_info table[MAX_ARRAY_SIZE]);
-void insert_group_info(group_info table [MAX_ARRAY_SIZE] ,char ip[MAX_STR_SIZE],char port[MAX_STR_SIZE],char multi_ip[MAX_STR_SIZE]);
+int add_member_group_info(group_info table [MAX_ARRAY_SIZE],int index, char * member);
+int search_group_info_by_name(group_info table [MAX_ARRAY_SIZE], char * name);
+int search_group_info_by_multi_ip(group_info table [MAX_ARRAY_SIZE], char * multi_ip);
+int insert_group_info(group_info table [MAX_ARRAY_SIZE] ,char name[MAX_STR_SIZE],char ip[MAX_STR_SIZE],char multi_ip[MAX_STR_SIZE]);
 void create_group_file(char* group_name);
+void list_groups( group_info* group_info_table, char* result);
 int create_directories(char path_name[MAX_STR_SIZE]);
 int open_or_create_file(char* name);
 bool has_access(char* user,char* file,char* acess);

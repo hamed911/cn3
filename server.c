@@ -6,10 +6,12 @@
 #include <errno.h>
 #include "utilities.h"
 
+
 int process_recieved_command(char buff_read[MAX_STR_SIZE],group_info* group_info_table,int fd,char* final_response,char* port)
 {
 	char response [MAX_STR_SIZE];
 	clear_buff(response,MAX_STR_SIZE);
+	char update [MAX_STR_SIZE]="ss";
 	int input_tokens_num;
 	char input_tokens[MAX_ARRAY_SIZE][MAX_STR_SIZE];
 	printf("recieved packet is:\n%s\n",buff_read );
@@ -22,26 +24,20 @@ int process_recieved_command(char buff_read[MAX_STR_SIZE],group_info* group_info
 	tokenizer(input_tokens[5], " ", &data_num,data );
 	if(strcmp( input_tokens[0],"00")==0){//from client
 		printf("client said!\n" );
-		if( strcmp(data[0],"Get") ==0 && strcmp(data[1],"List") ==0 && data_num==4){
-			int i;
-			strcat(response," list of group");
-			// for(i=0; i<MAX_ARRAY_SIZE; i++)
-			// 	if(group_fd_table[i].fd!=-1){
-			// 		strcat(response,group_fd_table[i].ip);
-			// 		strcat(response," ");
-			// 	}		
-		}else if( strcmp(data[0],"Request")==0 && data_num==4){
-			if( has_access(data[3],data[1],data[2]) ){
-				strcat(response,"You have Access to file\tfile is:\n");
-				char file_name [MAX_STR_SIZE];
-				clear_buff(file_name,MAX_STR_SIZE);
-				strcat(file_name,"./DB/Services/");
-				strcat(file_name,data[1]);
-				read_entire_file(file_name,response);
-				printf("in request\n");
-			}
+		if( strcmp(data[0],"Get") ==0 && strcmp(data[1],"Group") ==0 && strcmp(data[2],"List") ==0 && data_num==3){
+			list_groups(group_info_table, response);		
+		}else if( strcmp(data[0],"Join")==0 && data_num==2){
+			int g_index= search_group_info_by_name(group_info_table, data[1]);
+			if(g_index<0)
+				strcat(response,"This group does not exist.");
 			else{
-				strcat(response,"Access denied! You doesn't have permission!\n");
+				clear_buff(update,MAX_STR_SIZE);
+				strcat(update,"update");
+				add_member_group_info(group_info_table ,g_index, input_tokens[2]);
+				char g_info[MAX_STR_SIZE];
+				clear_buff(g_info, MAX_STR_SIZE);
+				group_info_to_string(group_info_table,g_index,g_info);
+				strcat(response,g_info);
 			}
 		}else if(strcmp(data[0],"Send")==0 && data_num>=4){
 			if( !has_access(data[2],data[1],"Write") )
@@ -67,28 +63,26 @@ int process_recieved_command(char buff_read[MAX_STR_SIZE],group_info* group_info
 
 			}
 
-		}else if(strcmp(data[0],"Append")==0 && data_num>=4){
-			if( !has_access(data[data_num-1],data[1],"Append") )
-				strcat(response,"Access denied! You doesn't have permission!\n");
-			else
-			{
-				char file_name [MAX_STR_SIZE];
-				clear_buff(file_name,MAX_STR_SIZE);
-				strcat(file_name,"./DB/Services/");
-				strcat(file_name,data[1]);
-				FILE* f_pointer = fopen(file_name, "a");
-				int i;
-				char file_data[MAX_STR_SIZE];
-				clear_buff(file_data,MAX_STR_SIZE);
-				for (i=2; i<data_num-1; i++){
-					strcat(file_data,data[i]);
-					strcat(file_data," ");
-				}
-				fputs( file_data,f_pointer);
-				fclose(f_pointer);
-				strcat(response,"data in ");
-				strcat(response,data[1]);
-				strcat(response," file Appended\n");
+		}else if(strcmp(data[0],"Leave")==0 && data_num==2){
+			int g_index= search_group_info_by_name(group_info_table, data[1]);
+			if(g_index<0)
+				strcat(response,"This group does not exist.");
+			else{
+				clear_buff(update,MAX_STR_SIZE);
+				strcat(update,"update");
+				remove_member_group_info(group_info_table,g_index, input_tokens[2]);
+				char g_info[MAX_STR_SIZE];
+				clear_buff(g_info, MAX_STR_SIZE);
+				group_info_to_string(group_info_table,g_index,g_info);
+				strcat(response,g_info);
+			}
+		}else if(strcmp(data[0],"Select")==0 && data_num==2){
+			int g_index= search_group_info_by_name(group_info_table, data[1]);
+			if(g_index<0)
+				strcat(response,"This group does not exist.");
+			else{
+				strcat(response,"Selected ");
+				strcat(response,group_info_table[g_index].multi_ip);
 			}
 		}else{
 			strcat(response,"Wrong command");
@@ -96,10 +90,10 @@ int process_recieved_command(char buff_read[MAX_STR_SIZE],group_info* group_info
 		
 	}else if(strcmp( input_tokens[0],"01")==0){//provider
 		printf("group server said!\n" );
-		insert_group_info(group_info_table ,input_tokens[2],input_tokens[7],input_tokens[4]);
+		insert_group_info(group_info_table ,input_tokens[3],input_tokens[2],input_tokens[4]);
 		show_group_info(group_info_table,4);
 	}
-	framing("11",input_tokens[2],"0","server",response,port,"ss",final_response);
+	framing("11",input_tokens[2],"0","server",response,port,update,final_response);
 
 	if(mystrcmp(input_tokens[7], "ssss")<0)
 	{
@@ -132,10 +126,8 @@ int process_recieved_command(char buff_read[MAX_STR_SIZE],group_info* group_info
 int main(int argn, char** args)
 {
 	//test(); return 0;
-	printf("before\n");
-	group_info group_info_table [2];
-	printf("after\n");
-	// clear_group_info(group_info_table);
+	group_info group_info_table [MAX_ARRAY_SIZE];
+	clear_group_info(group_info_table);
 	// test(service_fd_table);return;
 	if(argn!=2){
 		print("use this format: /Server port\n");
